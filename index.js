@@ -5,7 +5,7 @@ const { EmbedBuilder, Client, GatewayIntentBits, Collection } = require("discord
 // Configuração de variáveis de ambiente
 dotenv.config();
 
-const PORT = Number(process.env.PORT || 10000);
+const PORT = process.env.PORT || 10000;
 
 // Importar Firebase (inicializar automaticamente)
 const { db } = require("./src/config/firebase.js");
