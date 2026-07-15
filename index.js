@@ -1,8 +1,11 @@
 const dotenv = require("dotenv");
+const http = require("http");
 const { EmbedBuilder, Client, GatewayIntentBits, Collection } = require("discord.js");
 
 // Configuração de variáveis de ambiente
 dotenv.config();
+
+const PORT = Number(process.env.PORT || 10000);
 
 // Importar Firebase (inicializar automaticamente)
 const { db } = require("./src/config/firebase.js");
@@ -17,6 +20,15 @@ const client = new Client({
 
 // Collection para armazenar comandos
 client.commands = new Collection();
+
+const healthServer = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Omega Quantum Bot está online");
+});
+
+healthServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`🌐 Servidor de saúde ouvindo na porta ${PORT}`);
+});
 
 // ========================================
 // INICIALIZAR BOT
