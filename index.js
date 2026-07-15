@@ -72,13 +72,37 @@ async function initialize() {
 
   try {
     await client.login(process.env.DISCORD_TOKEN);
-    client.once("ready", () => {
-      console.log("📡 Bot pronto. Iniciando monitoramento de status...");
+    client.once("ready", async () => {
+      console.log("📡 Bot pronto. Registrando comandos slash...");
+      await registerSlashCommands();
+      console.log("📡 Iniciando monitoramento de status...");
       iniciarMonitoramentoStatus();
     });
   } catch (error) {
     console.error("❌ Erro ao fazer login:", error.message);
     process.exit(1);
+  }
+}
+
+async function registerSlashCommands() {
+  const GUILD_ID = process.env.GUILD_ID;
+  const commands = client.commands.map((command) => command.data.toJSON());
+
+  if (!commands.length) {
+    console.log("⚠️ Nenhum comando encontrado para registrar.");
+    return;
+  }
+
+  try {
+    if (GUILD_ID) {
+      await client.application.commands.set(commands, GUILD_ID);
+      console.log(`✅ ${commands.length} comandos registrados para o servidor ${GUILD_ID}.`);
+    } else {
+      await client.application.commands.set(commands);
+      console.log(`✅ ${commands.length} comandos registrados globalmente.`);
+    }
+  } catch (error) {
+    console.error("❌ Falha ao registrar comandos slash:", error);
   }
 }
 
