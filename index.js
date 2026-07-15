@@ -5,7 +5,15 @@ const { EmbedBuilder, Client, GatewayIntentBits, Collection } = require("discord
 // Configuração de variáveis de ambiente
 dotenv.config();
 
-const PORT = process.env.PORT || 10000;
+const PORT = Number(process.env.PORT || 10000);
+const HOST = process.env.HOST || "0.0.0.0";
+
+if (!PORT || Number.isNaN(PORT)) {
+  console.error(`❌ Porta inválida detectada: ${process.env.PORT}`);
+  process.exit(1);
+}
+
+console.log(`🔌 Iniciando servidor HTTP em ${HOST}:${PORT}`);
 
 // Importar Firebase (inicializar automaticamente)
 const { db } = require("./src/config/firebase.js");
@@ -26,8 +34,14 @@ const healthServer = http.createServer((req, res) => {
   res.end("Omega Quantum Bot está online");
 });
 
-healthServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`🌐 Servidor de saúde ouvindo na porta ${PORT}`);
+healthServer.on("error", (error) => {
+  console.error(`❌ Erro no servidor HTTP: ${error.message}`);
+  process.exit(1);
+});
+
+healthServer.listen({ port: PORT, host: HOST }, () => {
+  const addr = healthServer.address();
+  console.log(`🌐 Servidor de saúde ouvindo em ${addr.address}:${addr.port}`);
 });
 
 // ========================================
