@@ -3,7 +3,7 @@ const {
     EmbedBuilder
 } = require("discord.js");
 
-const db = require("../.././src/config/firebase.js");
+const { db } = require("../.././src/config/firebase.js");
 
 module.exports = {
     data: new SlashCommandBuilder()
