@@ -9,32 +9,22 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName("userinfo")
         .setDescription("Mostra informações de uma conta do Omega Quantum.")
-        .addStringOption(option =>
-            option
-                .setName("deviceid")
-                .setDescription("ID do dispositivo (Página Conta do Omega)")
-                .setRequired(true)
+        .addUserOption(option =>
+            option.setName("usuario")
+                .setDescription("Selecione o usuário para consultar.")
+                .setRequired(false)
         ),
 
     async execute(interaction) {
 
         await interaction.deferReply();
+        const user = interaction.options.getUser("usuario") || interaction.user;
+        const userId = user.id;
 
         try {
-
-            const deviceId = interaction.options.getString("deviceid");
-
-            const doc = await db.collection("users").doc(deviceId).get();
-
-            if (!doc.exists) {
-                return interaction.editReply({
-                    content:
-                        "<:recusado:1031262539272687777> **Dispositivo não encontrado.**\n> Verifique se o Device ID informado está correto."
-                });
-            }
-
-            const userData = doc.data();
-
+            const userDoc = await db.collection("users").where("discordID", "==", userId).get();
+            const userData = userDoc.data();
+        
             const stats = userData.stats || {};
             const limits = userData.limits || {};
 
@@ -118,11 +108,11 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor(0x18D7B6)
                 .setTitle("<:user:1019271077890887781> Informações do Usuário")
-                .setDescription(`Informações associadas ao dispositivo **${deviceId}**.`)
+                .setDescription(`Informações associadas ao usuário **${user.tag}**.`)
                 .addFields(
                     {
                         name: "👤 Usuário",
-                        value: `**Dispositivo:** \`${deviceId}\`\n**Nome:** ${userData.name || "Não informado"}\n**Status:** ${statusTexto}\n**Plano:** ${plano}\n**Expira em:** ${formatDate(userData.expirationDate)}`,
+                        value: `**Nome:** ${userData.name || "Não informado"}\n**Status:** ${statusTexto}\n**Plano:** ${plano}\n**Expira em:** ${formatDate(userData.expirationDate)}`,
                         inline: false
                     },
                     {
@@ -151,7 +141,7 @@ module.exports = {
 
             return interaction.editReply({
                 content:
-                    "<:recusado:1031262539272687777> Ocorreu um erro ao consultar este dispositivo."
+                    "<:recusado:1031262539272687777> Ocorreu um erro ao consultar este usuário."
             });
 
         }
