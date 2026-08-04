@@ -22,9 +22,17 @@ module.exports = {
         const userId = user.id;
 
         try {
-            const userDoc = await db.collection("users").where("discordID", "==", userId).get();
-            const userData = await userDoc?.data();
-        
+            const userQuery = await db.collection("users").where("discordID", "==", userId).get();
+
+            if (userQuery.empty) {
+                return interaction.editReply({
+                    content: "<:recusado:1031262539272687777> Nenhum usuário encontrado para este discordID."
+                });
+            }
+
+            const userDoc = userQuery.docs[0];
+            const userData = userDoc.data();
+
             const stats = userData.stats || {};
             const limits = userData.limits || {};
 
