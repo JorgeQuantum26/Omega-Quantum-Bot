@@ -23,7 +23,7 @@ module.exports = {
 
         try {
             const userDoc = await db.collection("users").where("discordID", "==", userId).get();
-            const userData = userDoc.data();
+            const userData = await userDoc?.data();
         
             const stats = userData.stats || {};
             const limits = userData.limits || {};
