@@ -72,16 +72,18 @@ async function initialize() {
     process.exit(1);
   }
 
+  client.once("ready", async () => {
+    console.log("📡 Bot pronto. Registrando comandos slash...");
+    await registerSlashCommands();
+    console.log("📡 Iniciando monitoramento de status...");
+    iniciarMonitoramentoStatus();
+  });
+
   try {
     await client.login(process.env.DISCORD_TOKEN);
-    client.once("ready", async () => {
-      console.log("📡 Bot pronto. Registrando comandos slash...");
-      await registerSlashCommands();
-      console.log("📡 Iniciando monitoramento de status...");
-      iniciarMonitoramentoStatus();
-    });
   } catch (error) {
-    console.error("❌ Erro ao fazer login:", error.message);
+    console.error("❌ Erro ao fazer login no Discord:", error.message);
+    console.error("Verifique se o token está válido e se o bot está habilitado no Developer Portal.");
     process.exit(1);
   }
 }
