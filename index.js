@@ -28,6 +28,12 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
+client.on("debug", (message) => console.log(`[Discord] ${message}`));
+client.on("warn", (message) => console.warn(`[Discord] ${message}`));
+client.on("error", (error) => console.error("❌ Erro no cliente Discord:", error));
+client.on("shardError", (error) => console.error("❌ Erro no Gateway Discord:", error));
+client.on("invalidated", () => console.error("❌ A sessão do bot foi invalidada pelo Discord."));
+
 // Collection para armazenar comandos
 client.commands = new Collection();
 
@@ -67,7 +73,9 @@ async function initialize() {
 
   // Login
   console.log("\n🔐 Autenticando no Discord...");
-  if (!process.env.DISCORD_TOKEN) {
+  const discordToken = process.env.DISCORD_TOKEN?.trim();
+
+  if (!discordToken) {
     console.error("❌ Erro: DISCORD_TOKEN não configurado no .env");
     process.exit(1);
   }
@@ -79,12 +87,26 @@ async function initialize() {
     iniciarMonitoramentoStatus();
   });
 
+  let loginTimeout;
+
   try {
-    await client.login(process.env.DISCORD_TOKEN);
+    const loginPromise = client.login(discordToken);
+
+    await Promise.race([
+      loginPromise,
+      new Promise((_, reject) => {
+        loginTimeout = setTimeout(
+          () => reject(new Error("timeout aguardando conexão com o Gateway do Discord (45s)")),
+          45000
+        );
+      }),
+    ]);
   } catch (error) {
     console.error("❌ Erro ao fazer login no Discord:", error.message);
     console.error("Verifique se o token está válido e se o bot está habilitado no Developer Portal.");
     process.exit(1);
+  } finally {
+    clearTimeout(loginTimeout);
   }
 }
 
