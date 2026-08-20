@@ -32,6 +32,12 @@ client.on("debug", (message) => console.log(`[Discord] ${message}`));
 client.on("warn", (message) => console.warn(`[Discord] ${message}`));
 client.on("error", (error) => console.error("❌ Erro no cliente Discord:", error));
 client.on("shardError", (error) => console.error("❌ Erro no Gateway Discord:", error));
+client.on("shardConnecting", (id) => console.log(`🔌 Conectando ao shard ${id}...`));
+client.on("shardReady", (id) => console.log(`✅ Shard ${id} conectado.`));
+client.on("shardReconnecting", (id) => console.warn(`🔄 Reconectando o shard ${id}...`));
+client.on("shardDisconnect", (event, id) => {
+  console.error(`❌ Shard ${id} desconectado: código ${event.code} (${event.reason || "sem motivo"})`);
+});
 client.on("invalidated", () => console.error("❌ A sessão do bot foi invalidada pelo Discord."));
 
 // Collection para armazenar comandos
