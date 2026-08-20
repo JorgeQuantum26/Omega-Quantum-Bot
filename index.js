@@ -6,7 +6,7 @@ const { EmbedBuilder, Client, GatewayIntentBits, Collection } = require("discord
 // Configuração de variáveis de ambiente
 dotenv.config();
 
-const thumbnail = path.join(__dirname, "assets", "omega.png");
+const thumbnail = path.join(__dirname, "commands", "assets", "omega.png");
 const PORT = Number(process.env.PORT || 10000);
 const HOST = process.env.HOST || "0.0.0.0";
 
