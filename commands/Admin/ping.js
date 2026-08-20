@@ -50,11 +50,11 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(worstLatency <= 300 && coreLatency !== null ? 0x43b581 : 0xfaa61a)
-      .setTitle("🏓 Omega Quantum • Diagnóstico de Conexão")
+      .setTitle("<:ping:1020302394464157717> Omega Quantum • Diagnóstico de Conexão")
       .setDescription("Relatório em tempo real dos serviços principais da plataforma.")
       .addFields(
         {
-          name: "🌐 API do Discord",
+          name: "<:js:1029940174316126289> API do Discord",
           value: `${formatLatency(discordApiLatency)} • ${getLatencyStatus(discordApiLatency)}`,
           inline: true,
         },
@@ -70,7 +70,7 @@ module.exports = {
           inline: true,
         },
         {
-          name: "⏱️ Uptime",
+          name: "<a:hosting:1020841571089924188> Uptime",
           value: formatUptime(process.uptime()),
           inline: true,
         },
@@ -80,7 +80,7 @@ module.exports = {
           inline: true,
         },
         {
-          name: "🧩 Ambiente",
+          name: "<:developer_icon:1196780422781218826> Ambiente",
           value: process.env.NODE_ENV || "production",
           inline: true,
         }
