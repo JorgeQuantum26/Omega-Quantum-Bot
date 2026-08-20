@@ -1,10 +1,12 @@
 const dotenv = require("dotenv");
+const path = require("path");
 const http = require("http");
 const { EmbedBuilder, Client, GatewayIntentBits, Collection } = require("discord.js");
 
 // Configuração de variáveis de ambiente
 dotenv.config();
 
+const thumbnail = path.join(__dirname, "assets", "omega.png");
 const PORT = Number(process.env.PORT || 10000);
 const HOST = process.env.HOST || "0.0.0.0";
 
@@ -193,7 +195,7 @@ async function publicarStatusNoCanal(docData) {
     .setColor(corEmbed)
     .setDescription(textoDescricao)
     .setThumbnail(serverIcon || null)
-    .setImage(serverIcon || null)
+    .setImage(`attachment://${path.basename(thumbnail)}`)
     .setAuthor({ name: guild?.name || "Omega Quantum", iconURL: serverIcon || undefined })
     .addFields(
       { name: nomesFormatados.tarefasp, value: statusVisual[tarefasp] || "⚪ Carregando...", inline: true },
@@ -205,7 +207,7 @@ async function publicarStatusNoCanal(docData) {
     .setFooter({ text: "Sincronizado via Omega Core Cloud" })
     .setTimestamp();
 
-  const mensagemNova = await canal.send({ embeds: [embed] });
+  const mensagemNova = await canal.send({ embeds: [embed], files: [thumbnail] });
   ultimaMensagem = mensagemNova;
 }
 
