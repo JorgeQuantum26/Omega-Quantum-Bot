@@ -1,7 +1,18 @@
 const dotenv = require("dotenv");
 const path = require("path");
 const http = require("http");
-const { EmbedBuilder, Client, GatewayIntentBits, Collection } = require("discord.js");
+const {
+  EmbedBuilder,
+  Client,
+  GatewayIntentBits,
+  Collection,
+  ChannelType,
+  PermissionFlagsBits,
+} = require("discord.js");
+const express = require("express");
+const app = express();
+
+app.use(express.json());
 
 // Configuração de variáveis de ambiente
 dotenv.config();
@@ -9,6 +20,17 @@ dotenv.config();
 const thumbnail = path.join(__dirname, "commands", "assets", "omega.png");
 const PORT = Number(process.env.PORT || 10000);
 const HOST = process.env.HOST || "0.0.0.0";
+
+function requireCoreApiKey(req, res, next) {
+  const expectedKey = process.env.OMEGA_CORE_API_KEY?.trim();
+  const receivedKey = req.get("x-api-key") || req.get("authorization")?.replace(/^Bearer\s+/i, "");
+
+  if (!expectedKey || receivedKey !== expectedKey) {
+    return res.status(401).json({ error: "Não autorizado" });
+  }
+
+  return next();
+}
 
 if (!PORT || Number.isNaN(PORT)) {
   console.error(`❌ Porta inválida detectada: ${process.env.PORT}`);
@@ -43,10 +65,191 @@ client.on("invalidated", () => console.error("❌ A sessão do bot foi invalidad
 // Collection para armazenar comandos
 client.commands = new Collection();
 
-const healthServer = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("Omega Quantum Bot está online");
+app.get("/", (req, res) => {
+  res.json({ service: "omega-quantum-bot", status: "online" });
 });
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    service: "omega-quantum-bot",
+    status: client.isReady() ? "ready" : "starting",
+    uptime: Math.floor(process.uptime()),
+  });
+});
+
+app.get("/api/status", requireCoreApiKey, async (req, res) => {
+  try {
+    const snapshot = await db.collection("service").doc("status").get();
+
+    return res.json({
+      exists: snapshot.exists,
+      data: snapshot.exists ? snapshot.data() : null,
+    });
+  } catch (error) {
+    console.error("❌ Erro na API ao consultar status:", error.message);
+    return res.status(503).json({ error: "Omega Core Cloud indisponível" });
+  }
+});
+
+app.post("/api/status", requireCoreApiKey, async (req, res) => {
+  const allowedStatuses = new Set(["online", "offline", "maintenance"]);
+  const serviceNames = ["tarefasp", "expansao", "leitura", "speak", "redacao"];
+  const invalidService = serviceNames.find(
+    (serviceName) => req.body[serviceName] !== undefined && !allowedStatuses.has(req.body[serviceName])
+  );
+
+  if (invalidService) {
+    return res.status(400).json({
+      error: `${invalidService} deve ser online, offline ou maintenance`,
+    });
+  }
+
+  const statusData = Object.fromEntries(
+    serviceNames
+      .filter((serviceName) => req.body[serviceName] !== undefined)
+      .map((serviceName) => [serviceName, req.body[serviceName]])
+  );
+
+  if (!Object.keys(statusData).length) {
+    return res.status(400).json({ error: "Envie pelo menos um serviço para atualizar" });
+  }
+
+  try {
+    await db.collection("service").doc("status").set(statusData, { merge: true });
+    return res.status(202).json({ updated: true, data: statusData });
+  } catch (error) {
+    console.error("❌ Erro na API ao atualizar status:", error.message);
+    return res.status(503).json({ error: "Não foi possível atualizar o Omega Core Cloud" });
+  }
+});
+
+app.post("/api/support/create-ticket", requireCoreApiKey, async (req, res) => {
+  const { email, nome, plano, discordID } = req.body;
+  const guildId = process.env.SUPPORT_GUILD_ID || process.env.GUILD_ID;
+  const supportRoleId = process.env.SUPPORT_ROLE_ID;
+  const supportCategoryId = process.env.SUPPORT_CATEGORY_ID;
+  const normalizedPlan = String(plano || "").toLowerCase().trim();
+
+  const priorities = {
+    semanal: { label: "Normal", emoji: "🔵" },
+    mensal: { label: "Normal", emoji: "🔵" },
+    trimestral: { label: "Alta", emoji: "🟠" },
+    anual: { label: "Máxima", emoji: "🔴" },
+  };
+  const priority = priorities[normalizedPlan];
+
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return res.status(400).json({ error: "email válido é obrigatório" });
+  }
+
+  if (!nome || typeof nome !== "string" || nome.trim().length > 100) {
+    return res.status(400).json({ error: "nome é obrigatório e deve ter até 100 caracteres" });
+  }
+
+  if (!priority) {
+    return res.status(400).json({
+      error: "plano deve ser semanal, mensal, trimestral ou anual",
+    });
+  }
+  if (!/^\d{17,20}$/.test(String(discordID || ""))) {
+    return res.status(400).json({ error: "discordID inválido" });
+  }
+  if (!guildId || !supportRoleId) {
+    return res.status(500).json({ error: "Suporte Discord não está configurado no bot" });
+  }
+  if (!client.isReady()) {
+    return res.status(503).json({ error: "Bot Discord ainda está conectando" });
+  }
+
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    const member = await guild.members.fetch(discordID);
+    const supportRole = await guild.roles.fetch(supportRoleId);
+
+    if (!supportRole) {
+      return res.status(500).json({ error: "Cargo de suporte não encontrado" });
+    }
+
+    const safeUsername = member.user.username
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 100);
+    const channelName = `[${priority.emoji}]-suporte-${safeUsername}`.slice(0, 100);
+
+    const permissionOverwrites = [
+      {
+        id: guild.roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: supportRole.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
+      },
+      {
+        id: member.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
+      },
+      {
+        id: client.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageChannels,
+        ],
+      },
+    ];
+
+    const channel = await guild.channels.create({
+      name: channelName || `suporte-${member.id}`,
+      type: ChannelType.GuildText,
+      parent: supportCategoryId || undefined,
+      permissionOverwrites,
+    });
+
+    await channel.send({
+      content: `${priority.emoji} **Novo atendimento de prioridade ${priority.label}**\n\n` +
+        `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
+        `Um atendente com o cargo <@&${supportRole.id}> responderá em breve.`,
+      embeds: [
+        new EmbedBuilder()
+          .setColor(priority.label === "Máxima" ? 0xf04747 : priority.label === "Alta" ? 0xfaa61a : 0x3498db)
+          .setTitle(`${priority.emoji} Ticket de Suporte`)
+          .addFields(
+            { name: "Cliente", value: nome.trim(), inline: true },
+            { name: "Plano", value: plano, inline: true },
+            { name: "Prioridade", value: `${priority.emoji} ${priority.label}`, inline: true },
+            { name: "E-mail", value: email.trim().slice(0, 1024), inline: false },
+          )
+          .setFooter({ text: "Omega Quantum Support" })
+          .setTimestamp(),
+      ],
+    });
+
+    console.log(`🎫 Ticket criado: ${channel.id} para ${member.user.tag} (${priority.label})`);
+    return res.status(201).json({
+      created: true,
+      ticketId: channel.id,
+      channelName: channel.name,
+      priority: priority.label,
+      priorityEmoji: priority.emoji,
+    });
+  } catch (error) {
+    console.error("❌ Erro ao criar ticket de suporte:", error.message);
+    return res.status(500).json({ error: "Não foi possível criar o ticket de suporte" });
+  }
+});
+
+const healthServer = http.createServer(app);
 
 healthServer.on("error", (error) => {
   console.error(`❌ Erro no servidor HTTP: ${error.message}`);
@@ -255,6 +458,8 @@ async function iniciarMonitoramentoStatus() {
     }
   });
 }
+
+
 
 initialize();
 
