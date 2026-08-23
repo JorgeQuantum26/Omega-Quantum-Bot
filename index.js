@@ -13,7 +13,8 @@ const {
   ComponentType,
   ContainerBuilder,
   MessageFlags,
-  AttachmentBuilder
+  AttachmentBuilder,
+  ActionRowBuilder
 } = require("discord.js");
 const express = require("express");
 const multer = require("multer");
