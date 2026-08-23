@@ -14,6 +14,7 @@ const {
   ContainerBuilder,
   MessageFlags,
   AttachmentBuilder,
+  ActionRowBuilder,
 } = require("discord.js");
 const express = require("express");
 const multer = require("multer");
@@ -260,21 +261,19 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
     container.addSeparatorComponents((separator) => separator)
     container.addTextDisplayComponents((text) =>
           text.setContent(`**<:staff:1021090313076482088> [Painel Staff]** Escolha uma ação para este ticket:`))
-     container.addActionRowComponents((row) =>
-          row.addComponents(
-            new ButtonBuilder()
-              .setCustomId(`fechar_ticket_${ticketId}`)
-              .setLabel("Fechar Ticket")
-              .setEmoji(`<a:Warn_9:1019200893209563136>`)
-              .setStyle(ButtonStyle.Primary)
-          ),
-          new ButtonBuilder()
-          .setCustomId(`punir_${ticketId}_${discordID}`)
-          .setLabel(`Punir Cliente & Fechar Ticket`)
-          .setEmoji(`<:ban_icon:1021364346774888569>`)
-          .setStyle(ButtonStyle.Danger)
-    )
-    container.addSeparatorComponents((separator) => separator)
+    const buttonRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`fechar_ticket_${ticketId}`)
+        .setLabel("Fechar Ticket")
+        .setEmoji(`<a:Warn_9:1019200893209563136>`)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`punir_${ticketId}_${discordID}`)
+        .setLabel(`Punir Cliente & Fechar Ticket`)
+        .setEmoji(`<:ban_icon:1021364346774888569>`)
+        .setStyle(ButtonStyle.Danger)
+    );
+    container.addActionRowComponents(buttonRow);
     container.addTextDisplayComponents((text) =>
       text.setContent(
         `-# **Omega Quantum Support** - ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} -`
