@@ -14,7 +14,6 @@ const {
   ContainerBuilder,
   MessageFlags,
   AttachmentBuilder,
-  ActionRowBuilder
 } = require("discord.js");
 const express = require("express");
 const multer = require("multer");
@@ -238,9 +237,15 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
     const priorityColor = priority.label === "Máxima" ? 0xf04747 : priority.label === "Alta" ? 0xfaa61a : 0x3498db;
 
     const container = new ContainerBuilder()
-      .setAccentColor(priorityColor)
+      .setAccentColor(priorityColor);
     container.addTextDisplayComponents((text) =>
-      text.setContent(`# **Ticket ${ticketId}**`))
+      text.setContent(
+        `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
+        `Um atendente com o cargo <@&${supportRole.id}> responderá em breve.`
+      )
+    );
+    container.addTextDisplayComponents((text) =>
+      text.setContent(`# **Ticket ${ticketId}**`));
     container.addSeparatorComponents((separator) => separator)
     container.addTextDisplayComponents((text) =>
       text.setContent(
@@ -271,16 +276,13 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
     )
     container.addSeparatorComponents((separator) => separator)
     container.addTextDisplayComponents((text) =>
-         text.setContent(`-# **Omega Quantum Support** - ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} -`))
-
-    const linhaV2 = new ActionRowBuilder()
-    .addComponents(container);
+      text.setContent(
+        `-# **Omega Quantum Support** - ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} -`
+      ));
 
     await channel.send({
-      content: `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
-        `Um atendente com o cargo <@&${supportRole.id}> responderá em breve.`,
-      components: [linhaV2],
-      MessageFlags: MessageFlags.IsComponentsV2,
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
     });
 
     console.log(`🎫 Ticket criado: ${channel.id} para ${member.user.tag} (${priority.label})`);
