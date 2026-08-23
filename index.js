@@ -8,11 +8,19 @@ const {
   Collection,
   ChannelType,
   PermissionFlagsBits,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
+  ContainerBuilder,
+  MessageFlags,
+  AttachmentBuilder
 } = require("discord.js");
 const express = require("express");
 const app = express();
 
 app.use(express.json());
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Configuração de variáveis de ambiente
 dotenv.config();
@@ -123,8 +131,8 @@ app.post("/api/status", requireCoreApiKey, async (req, res) => {
   }
 });
 
-app.post("/api/support/create-ticket", requireCoreApiKey, async (req, res) => {
-  const { email, nome, plano, discordID } = req.body;
+app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"), async (req, res) => {
+  const { email, nome, plano, discordID, ticketId, categoria, mensagem } = req.body;
   const guildId = process.env.SUPPORT_GUILD_ID || process.env.GUILD_ID;
   const supportRoleId = process.env.SUPPORT_ROLE_ID;
   const supportCategoryId = process.env.SUPPORT_CATEGORY_ID;
@@ -169,6 +177,7 @@ app.post("/api/support/create-ticket", requireCoreApiKey, async (req, res) => {
     if (!supportRole) {
       return res.status(500).json({ error: "Cargo de suporte não encontrado" });
     }
+
 
     const safeUsername = member.user.username
       .toLowerCase()
@@ -216,23 +225,57 @@ app.post("/api/support/create-ticket", requireCoreApiKey, async (req, res) => {
       permissionOverwrites,
     });
 
+    if (req.file) {
+      const anexoPrint = new AttachmentBuilder(req.file.buffer, { name: req.file.originalname });
+      await channel.send({
+        content: `📸 Captura de Tela enviada pelo cliente`,
+        files: [anexoPrint]
+      })
+    }
+
+    const priorityColor = priority.label === "Máxima" ? 0xf04747 : priority.label === "Alta" ? 0xfaa61a : 0x3498db;
+
+    const container = new ContainerBuilder()
+      .setAccentColor(priorityColor)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(`# **Ticket ${ticketId}**`))
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(
+        `• **Cliente:** ${nome.trim()}\n` +
+        `• **Plano:** \`${plano}\`\n` +
+        `• **Prioridade:** ${priority.emoji} ${priority.label}\n` +
+        `• **E-mail:** \`${email.trim()}\``
+      ))
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(`## Categoria: ${categoria}\nMensagem do cliente:\n>>> ${mensagem}`))
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+          text.setContent(`**<:staff:1021090313076482088> [Painel Staff]** Escolha uma ação para este ticket:`))
+     container.addActionRowComponents((row) =>
+          row.addComponents(
+            new ButtonBuilder()
+              .setCustomId(`fechar_ticket_${ticketId}`)
+              .setLabel("Fechar Ticket")
+              .setEmoji(`<a:Warn_9:1019200893209563136>`)
+              .setStyle(ButtonStyle.Primary)
+          ),
+          new ButtonBuilder()
+          .setCustomId(`punir_${ticketId}_${discordID}`)
+          .setLabel(`Punir Cliente & Fechar Ticket`)
+          .setEmoji(`<:ban_icon:1021364346774888569>`)
+          .setStyle(ButtonStyle.Danger)
+    )
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+         text.setContent(`-# **Omega Quantum Support** - ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} -`))
+
     await channel.send({
-      content: `${priority.emoji} **Novo atendimento de prioridade ${priority.label}**\n\n` +
-        `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
+      content: `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
         `Um atendente com o cargo <@&${supportRole.id}> responderá em breve.`,
-      embeds: [
-        new EmbedBuilder()
-          .setColor(priority.label === "Máxima" ? 0xf04747 : priority.label === "Alta" ? 0xfaa61a : 0x3498db)
-          .setTitle(`${priority.emoji} Ticket de Suporte`)
-          .addFields(
-            { name: "Cliente", value: nome.trim(), inline: true },
-            { name: "Plano", value: plano, inline: true },
-            { name: "Prioridade", value: `${priority.emoji} ${priority.label}`, inline: true },
-            { name: "E-mail", value: email.trim().slice(0, 1024), inline: false },
-          )
-          .setFooter({ text: "Omega Quantum Support" })
-          .setTimestamp(),
-      ],
+      components: [container],
+      MessageFlags: MessageFlags.IsComponentsV2,
     });
 
     console.log(`🎫 Ticket criado: ${channel.id} para ${member.user.tag} (${priority.label})`);
