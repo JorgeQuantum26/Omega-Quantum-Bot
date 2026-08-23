@@ -272,10 +272,13 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
     container.addTextDisplayComponents((text) =>
          text.setContent(`-# **Omega Quantum Support** - ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} -`))
 
+    const linhaV2 = new ActionRowBuilder()
+    .addComponents(container);
+
     await channel.send({
       content: `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
         `Um atendente com o cargo <@&${supportRole.id}> responderá em breve.`,
-      components: [container],
+      components: [linhaV2],
       MessageFlags: MessageFlags.IsComponentsV2,
     });
 
