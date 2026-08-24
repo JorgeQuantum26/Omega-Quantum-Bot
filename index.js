@@ -187,7 +187,6 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
       .replace(/-+/g, "-")
       .slice(0, 100);
     const channelName = `[${priority.emoji}]-suporte-${safeUsername}`.slice(0, 100);
-as
     const permissionOverwrites = [
       {
         id: guild.roles.everyone.id,
