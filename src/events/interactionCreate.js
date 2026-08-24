@@ -92,7 +92,7 @@ async function handleCloseModal(interaction) {
         `🔒 **Ticket fechado**\nTicket: ${ticketId}\nMotivo: ${reason}\nStaff: ${staffName} (${interaction.user.id})`
     );
 
-    await db.collection("ticket").doc(ticketId).update({
+    await db.collection("tickets").doc(ticketId).update({
         status: "resolvido",
         resolvidoPor: interaction.user.username,
         resolvidoPorId: interaction.user.id,
@@ -165,7 +165,7 @@ async function handlePunishModal(interaction) {
             motivo: reason,
             pontosReduzidos: amount
         })
-        await db.collection("ticket").doc("metricas").update({
+        await db.collection("tickets").doc("metricas").update({
             total_aberto: db.FieldValue.increment(-1),
             total_resolvidos: db.FieldValue.increment(1)
         })
