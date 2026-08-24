@@ -5,7 +5,7 @@ const {
     TextInputBuilder,
     TextInputStyle,
 } = require("discord.js");
-const { db } = require("../config/firebase.js");
+const { admin, db } = require("../config/firebase.js");
 
 const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID;
 const TICKET_CLOSE_DELAY = 5000;
@@ -99,9 +99,9 @@ async function handleCloseModal(interaction) {
         resolvidoEm: new Date().toISOString(),
         mensagem: reason
     })
-    await db.collection("tickets").doc("metricas").update({
-        total_aberto: db.FieldValue.increment(-1),
-        total_resolvidos: db.FieldValue.increment(1)
+        await db.collection("tickets").doc("metricas").update({
+            total_aberto: admin.firestore.FieldValue.increment(-1),
+            total_resolvidos: admin.firestore.FieldValue.increment(1)
     });
 
     return deleteTicketChannel(interaction, `Ticket fechado por ${interaction.user.tag}.`);
@@ -165,9 +165,9 @@ async function handlePunishModal(interaction) {
             motivo: reason,
             pontosReduzidos: amount
         })
-        await db.collection("tickets").doc("metricas").update({
-            total_aberto: db.FieldValue.increment(-1),
-            total_resolvidos: db.FieldValue.increment(1)
+            await db.collection("tickets").doc("metricas").update({
+                total_aberto: admin.firestore.FieldValue.increment(-1),
+                total_resolvidos: admin.firestore.FieldValue.increment(1)
         })
 
         await interaction.reply({
