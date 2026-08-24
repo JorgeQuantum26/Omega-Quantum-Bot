@@ -102,8 +102,7 @@ async function handleCloseModal(interaction) {
     await db.collection("ticket").doc("metricas").update({
         total_aberto: db.FieldValue.increment(-1),
         total_resolvidos: db.FieldValue.increment(1)
-    }) me m m m em 
-
+    });
 
     return deleteTicketChannel(interaction, `Ticket fechado por ${interaction.user.tag}.`);
 }
