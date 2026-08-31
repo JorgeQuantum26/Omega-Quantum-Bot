@@ -15,6 +15,10 @@ const {
   MessageFlags,
   AttachmentBuilder,
   ActionRowBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder
 } = require("discord.js");
 const express = require("express");
 const multer = require("multer");
@@ -33,9 +37,12 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 function requireCoreApiKey(req, res, next) {
   const expectedKey = process.env.OMEGA_CORE_API_KEY?.trim();
-  const receivedKey = req.get("x-api-key") || req.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const receivedKey =
+    req.get("x-api-key") ||
+    req.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    req.body?.token;
 
-  if (!expectedKey || receivedKey !== expectedKey) {
+  if (!expectedKey || receivedKey?.trim() !== expectedKey) {
     return res.status(401).json({ error: "Não autorizado" });
   }
 
@@ -132,6 +139,152 @@ app.post("/api/status", requireCoreApiKey, async (req, res) => {
     return res.status(503).json({ error: "Não foi possível atualizar o Omega Core Cloud" });
   }
 });
+
+app.post(`/api/support/create-ticket-manual`, requireCoreApiKey, async (req, res) => {
+  const { email, nome, plano, discordID, ticketId, categoria, mensagem } = req.body;
+  const guildId = process.env.SUPPORT_GUILD_ID || process.env.GUILD_ID;
+  const supportRoleId = process.env.SUPPORT_ROLE_ID;
+  const supportCategoryId = process.env.SUPPORT_CATEGORY_ID;
+  const normalizedPlan = String(plano || "").toLowerCase().trim();
+
+  const priorities = {
+    gratis: { label: 'Grátis', emoji: "🔵" },
+    semanal: { label: "Normal", emoji: "🔵" },
+    mensal: { label: "Normal", emoji: "🔵" },
+    trimestral: { label: "Alta", emoji: "🟠" },
+    anual: { label: "Máxima", emoji: "🔴" },
+  };
+
+
+  const priority = priorities[normalizedPlan];
+
+  if (!guildId || !supportRoleId) {
+    return res.status(500).json({ error: "Suporte Discord não está configurado no bot" });
+  }
+  if (!client.isReady()) {
+    return res.status(503).json({ error: "Bot Discord ainda está conectando" });
+  }
+
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    const member = await guild.members.fetch(discordID);
+    const supportRole = await guild.roles.fetch(supportRoleId);
+
+    if (!supportRole) {
+      return res.status(500).json({ error: "Cargo de suporte não encontrado" });
+    }
+
+
+    const safeUsername = member.user.username
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .slice(0, 100);
+    const channelName = `[${priority.emoji}]-suporte-${safeUsername}`.slice(0, 100);
+    const permissionOverwrites = [
+      {
+        id: guild.roles.everyone.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: supportRole.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
+      },
+      {
+        id: member.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
+      },
+      {
+        id: client.user.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageChannels,
+        ],
+      },
+    ];
+
+    const channel = await guild.channels.create({
+      name: channelName || `suporte-${member.id}`,
+      type: ChannelType.GuildText,
+      parent: supportCategoryId || undefined,
+      permissionOverwrites,
+    });
+
+    const priorityColor = priority.label === "Máxima" ? 0xf04747 : priority.label === "Alta" ? 0xfaa61a : 0x3498db;
+
+    const container = new ContainerBuilder()
+      .setAccentColor(priorityColor);
+    container.addTextDisplayComponents((text) =>
+      text.setContent(
+        `Olá, <@${member.id}>! A equipe de suporte está aqui para ajudar.\n` +
+        `Se possível, envie uma captura de tela do seu problema.\n` +
+        `Um atendente com o cargo <@&${supportRole.id}> responderá em breve.`
+      )
+    );
+    container.addTextDisplayComponents((text) =>
+      text.setContent(`# **Ticket ${ticketId}**`));
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(
+        `• **Cliente:** ${nome.trim()}\n` +
+        `• **Plano:** \`${plano}\`\n` +
+        `• **Prioridade:** ${priority.emoji} ${priority.label}\n` +
+        `• **E-mail:** \`${email.trim()}\``
+      ))
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(`## Categoria: ${categoria}\nMensagem do cliente:\n>>> ${mensagem}`))
+    container.addSeparatorComponents((separator) => separator)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(`**<:staff:1021090313076482088> [Painel Staff]** Escolha uma ação para este ticket:`))
+    const buttonRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`fechar_ticket_${ticketId}`)
+        .setLabel("Fechar Ticket")
+        .setEmoji(`<a:Warn_9:1019200893209563136>`)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`punir_${ticketId}_${discordID}`)
+        .setLabel(`Punir Cliente & Fechar Ticket`)
+        .setEmoji(`<:ban_icon:1021364346774888569>`)
+        .setStyle(ButtonStyle.Danger)
+    );
+    container.addActionRowComponents(buttonRow);
+    container.addTextDisplayComponents((text) =>
+      text.setContent(
+        `-# **Omega Quantum Support** - ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} -`
+      ));
+
+    await channel.send({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+    });
+
+    console.log(`🎫 Ticket criado: ${channel.id} para ${member.user.tag} (${priority.label})`);
+    return res.status(201).json({
+      created: true,
+      ticketId: channel.id,
+      channelName: channel.name,
+      priority: priority.label,
+      priorityEmoji: priority.emoji,
+    });
+  } catch (error) {
+    console.error("❌ Erro ao criar ticket de suporte:", error.message);
+    return res.status(500).json({ error: "Não foi possível criar o ticket de suporte" });
+
+  }
+})
+
 
 app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"), async (req, res) => {
   const { email, nome, plano, discordID, ticketId, categoria, mensagem } = req.body;
@@ -259,7 +412,7 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
       text.setContent(`## Categoria: ${categoria}\nMensagem do cliente:\n>>> ${mensagem}`))
     container.addSeparatorComponents((separator) => separator)
     container.addTextDisplayComponents((text) =>
-          text.setContent(`**<:staff:1021090313076482088> [Painel Staff]** Escolha uma ação para este ticket:`))
+      text.setContent(`**<:staff:1021090313076482088> [Painel Staff]** Escolha uma ação para este ticket:`))
     const buttonRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`fechar_ticket_${ticketId}`)
@@ -296,6 +449,86 @@ app.post("/api/support/create-ticket", requireCoreApiKey, upload.single("anexos"
     return res.status(500).json({ error: "Não foi possível criar o ticket de suporte" });
   }
 });
+
+app.post(`/api/support/ticket-message`, requireCoreApiKey, async (req, res) => {
+  const { channelId } = req.body;
+
+  if (!channelId) {
+    return res.status(400).json({ error: "ID do chat é obrigatório" });
+  }
+
+  try {
+
+    const banner = new AttachmentBuilder(
+      path.join(__dirname, "commands", "assets", "omega-support.png"),
+      { name: "omega-support.png" }
+    );
+    const canal = await client.channels.fetch(channelId);
+    const galeria = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://omega-support.png'));
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`select_ticket_category`)
+      .setPlaceholder(`Selecione a categoria do seu problema`)
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel("Alterar RA cadastrado incorretamente")
+          .setEmoji("📝")
+          .setValue("alteracao_ra"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("Problema técnico no sistema")
+          .setEmoji("💻")
+          .setValue("problema_tecnico"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("Problema com pagamento ou assinatura ativa")
+          .setEmoji("💳")
+          .setValue("problema_pagamento"),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("Outros problemas ou dúvidas")
+          .setEmoji("❓")
+          .setValue("outros")
+      )
+    const selectRow = new ActionRowBuilder().addComponents(selectMenu);
+
+    const container = new ContainerBuilder()
+    container.setAccentColor(0x0080FF)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(
+        "## 🤝 Central de Ajuda — Omega Quantum Systems\n" +
+        "Precisa de suporte? Nossa equipe está pronta para ajudar você da melhor forma possível."
+
+      ))
+    container.addSeparatorComponents((separator) => separator)
+    container.addMediaGalleryComponents(galeria)
+    container.addTextDisplayComponents((text) =>
+      text.setContent(
+        "### 💡 Como iniciar o seu atendimento:\n" +
+        "- Abra o menu de seleção localizado logo abaixo.\n" +
+        "- Escolha o assunto que melhor se encaixa na sua dúvida.\n" +
+        "- Preencha o breve formulário que aparecerá na sua tela.\n\n" +
+        "Após o envio, a nossa **equipe de suporte técnico** será notificada para iniciar o seu atendimento o mais rápido possível."
+      ))
+    container.addTextDisplayComponents((text) =>
+      text.setContent("> ⚡ **Eficiência no Atendimento:**\n" +
+        "> Para garantirmos a máxima agilidade nas respostas, pedimos que evite abrir múltiplos chamados para o mesmo assunto. Nós cuidaremos de tudo para você."
+
+      ))
+    container.addSeparatorComponents((separator) => separator)
+    container.addActionRowComponents(selectRow)
+
+    const message = await canal.send({
+      components: [container],
+      flags: MessageFlags.IsComponentsV2,
+      files: [banner]
+    })
+
+    return res.status(201).json({ sent: true, messageId: message.id, channelId: canal.id });
+  } catch (erro) {
+
+    console.log(`Erro ao enviar a mensagem de Suporte para o canal ${channelId}:`, erro.message);
+
+    return res.status(500).json({ error: "Não foi possível enviar a mensagem" })
+  }
+})
 
 const healthServer = http.createServer(app);
 

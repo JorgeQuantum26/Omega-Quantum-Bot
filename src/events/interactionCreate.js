@@ -4,9 +4,10 @@ const {
     PermissionFlagsBits,
     TextInputBuilder,
     TextInputStyle,
+    ActionRow,
 } = require("discord.js");
 const { admin, db } = require("../config/firebase.js");
-
+const ticketConfig = require("../config/ticketConfig.js");
 const SUPPORT_ROLE_ID = process.env.SUPPORT_ROLE_ID;
 const TICKET_CLOSE_DELAY = 5000;
 const PUNISHMENT_DURATION = 24 * 60 * 60 * 1000;
@@ -99,9 +100,9 @@ async function handleCloseModal(interaction) {
         resolvidoEm: new Date().toISOString(),
         mensagem: reason
     })
-        await db.collection("tickets").doc("metricas").update({
-            total_aberto: admin.firestore.FieldValue.increment(-1),
-            total_resolvidos: admin.firestore.FieldValue.increment(1)
+    await db.collection("tickets").doc("metricas").update({
+        total_aberto: admin.firestore.FieldValue.increment(-1),
+        total_resolvidos: admin.firestore.FieldValue.increment(1)
     });
 
     return deleteTicketChannel(interaction, `Ticket fechado por ${interaction.user.tag}.`);
@@ -144,16 +145,15 @@ async function handlePunishModal(interaction) {
             const userDoc = userQuery.docs[0];
             const currentTrustScore = Number(userDoc.data().trustScore ?? 100);
             await userDoc.ref.update({
-                trustScore: Math.max(0, currentTrustScore - amount),
-                lastPunishment: {
-                    amount: amount,
-                    reason: reason,
-                    ticketId: ticketId,
-                    staffId: interaction.user.id,
-                    staffTag: interaction.user.tag,
-                    staffName: interaction.user.username,
-                    createdAt: new Date().toISOString(),
-                },
+                ticketId: ticketId,
+                staffId: interaction.user.id,
+                staffTag: interaction.user.tag,
+                staffName: interaction.user.username,
+                createdAt: new Date().toISOString(),
+                punicao: {
+                    pontos: Math.max(0, currentTrustScore - amount),
+                    motivo: reason
+                }
             });
         }
 
@@ -164,10 +164,10 @@ async function handlePunishModal(interaction) {
             fechadoEm: new Date().toISOString(),
             motivo: reason,
             pontosReduzidos: amount
-        })
-            await db.collection("tickets").doc("metricas").update({
-                total_aberto: admin.firestore.FieldValue.increment(-1),
-                total_resolvidos: admin.firestore.FieldValue.increment(1)
+        });
+        await db.collection("tickets").doc("metricas").update({
+            total_aberto: admin.firestore.FieldValue.increment(-1),
+            total_resolvidos: admin.firestore.FieldValue.increment(1)
         })
 
         await interaction.reply({
@@ -220,6 +220,129 @@ async function handleModalSubmit(interaction) {
     if (interaction.customId.startsWith("punir_ticket_modal_")) {
         return handlePunishModal(interaction);
     }
+
+}
+
+async function handleProblems(interaction) {
+    const categoria = interaction.values[0];
+    const config = ticketConfig[categoria];
+
+    if (!config) {
+        return interaction.reply({
+            content: "❌ Categoria de Ticket inválida.",
+            ephemeral: true
+        });
+    }
+
+    const modal = new ModalBuilder()
+        .setCustomId(config.modalId)
+        .setTitle(config.titulo);
+
+    for (const campo of config.campos) {
+        const input = new TextInputBuilder()
+            .setCustomId(campo.id)
+            .setLabel(campo.label)
+            .setPlaceholder(campo.placeholder ?? "")
+            .setRequired(campo.required ?? true)
+            .setStyle(
+                campo.style === "Paragraph"
+                    ? TextInputStyle.Paragraph
+                    : TextInputStyle.Short
+            );
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(input)
+        );
+    }
+
+    return interaction.showModal(modal);
+}
+
+async function handleTicketModal(interaction) {
+    const config = Object.values(ticketConfig).find(
+        categoria => categoria.modalId === interaction.customId
+    );
+
+    if (!config) {
+        return interaction.reply({
+            content: "❌ Categoria de Ticket inválida.",
+            ephemeral: true
+        });
+    }
+
+    const mensagem = interaction.fields.getTextInputValue("mensagem");
+
+    const user = interaction.user.id;
+
+    const snapshot = await db
+        .collection("users")
+        .where("discordID", "==", user)
+        .limit(1)
+        .get();
+
+    const userData = snapshot.docs[0]?.data();
+
+    const email = userData?.email;
+    const nome = userData?.name;
+    const plano = userData?.plano;
+
+    const dados = {
+        email,
+        nome,
+        plano,
+        categoria: config.id,
+        discordID: user,
+        mensagem: mensagem
+    };
+
+    try {
+        const res = await fetch(
+            "https://omega-quantum-bot.onrender.com/api/support/create-ticket-manual",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-api-key": process.env.OMEGA_CORE_API_KEY
+                },
+                body: JSON.stringify(dados)
+            }
+        );
+
+        if (!res.ok) {
+            const texto = await res.text();
+
+            console.error(
+                `❌ Erro ao criar ticket: ${res.status} - ${texto}`
+            );
+
+            return interaction.reply({
+                content:
+                    "❌ Ocorreu um erro interno ao criar o ticket. Por favor, tente novamente mais tarde.",
+                ephemeral: true
+            });
+        }
+
+        return interaction.reply({
+            content: "✅ Seu ticket foi criado com sucesso!",
+            ephemeral: true
+        });
+
+    } catch (error) {
+        console.error("❌ Erro ao criar ticket:", error);
+
+        return interaction.reply({
+            content:
+                "❌ Ocorreu um erro interno ao criar o ticket. Por favor, tente novamente mais tarde.",
+            ephemeral: true
+        });
+    }
+}
+
+
+async function handleSelectMenu(interaction) {
+    if (interaction.customId === "ticket_categoria") {
+        return handleProblems(interaction);
+    }
 }
 
 module.exports = {
@@ -233,6 +356,9 @@ module.exports = {
 
         if (interaction.isModalSubmit()) {
             return handleModalSubmit(interaction);
+        }
+        if (interaction.isStringSelectMenu()) {
+            return handleSelectMenu(interaction);
         }
 
         if (!interaction.isChatInputCommand()) return;
