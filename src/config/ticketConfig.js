@@ -1,5 +1,5 @@
 const ticketConfig = {
-    alterar_ra: {
+    alteracao_ra: {
         id: "alterar_ra",
         label: "Alterar RA cadastrado incorretamente",
         description: "Solicite a correção do RA cadastrado.",
@@ -35,7 +35,7 @@ const ticketConfig = {
         ]
     },
 
-    pagamentos: {
+    problema_pagamento: {
         id: "pagamentos",
         label: "Problema com pagamentos ou assinatura",
         description: "Problemas relacionados a pagamentos ou assinatura.",

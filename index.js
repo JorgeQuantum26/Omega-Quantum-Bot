@@ -467,7 +467,7 @@ app.post(`/api/support/ticket-message`, requireCoreApiKey, async (req, res) => {
     const galeria = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://omega-support.png'));
 
     const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId(`select_ticket_category`)
+      .setCustomId(`ticket_categoria`)
       .setPlaceholder(`Selecione a categoria do seu problema`)
       .addOptions(
         new StringSelectMenuOptionBuilder()
