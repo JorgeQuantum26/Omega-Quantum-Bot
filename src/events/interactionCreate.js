@@ -4,7 +4,6 @@ const {
     PermissionFlagsBits,
     TextInputBuilder,
     TextInputStyle,
-    ActionRow,
 } = require("discord.js");
 const { admin, db } = require("../config/firebase.js");
 const ticketConfig = require("../config/ticketConfig.js");
@@ -219,6 +218,10 @@ async function handleModalSubmit(interaction) {
 
     if (interaction.customId.startsWith("punir_ticket_modal_")) {
         return handlePunishModal(interaction);
+    }
+
+    if(interaction.customId.startsWith("ticket_modal_")) {
+        return handleTicketModal(interaction);
     }
 
 }
