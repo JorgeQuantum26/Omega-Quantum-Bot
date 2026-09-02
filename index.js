@@ -172,6 +172,10 @@ app.post(`/api/support/create-ticket-manual`, requireCoreApiKey, async (req, res
     return res.status(400).json({ error: "nome é obrigatório" });
   }
 
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return res.status(400).json({ error: "email válido é obrigatório" });
+  }
+
   if (!guildId || !supportRoleId) {
     return res.status(500).json({ error: "Suporte Discord não está configurado no bot" });
   }

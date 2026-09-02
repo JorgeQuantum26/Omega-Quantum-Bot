@@ -224,6 +224,10 @@ async function handleModalSubmit(interaction) {
         return handleTicketModal(interaction);
     }
 
+    return interaction.reply({
+        content: "❌ Este formulário não é mais válido.",
+        ephemeral: true
+    });
 }
 
 async function handleProblems(interaction) {
@@ -275,32 +279,24 @@ async function handleTicketModal(interaction) {
 
     await interaction.deferReply({ ephemeral: true });
 
-    const mensagem = interaction.fields.getTextInputValue("mensagem");
-
-    const user = interaction.user.id;
-
-    const snapshot = await db
-        .collection("users")
-        .where("discordID", "==", user)
-        .limit(1)
-        .get();
-
-    const userData = snapshot.docs[0]?.data();
-
-    const email = userData?.email;
-    const nome = userData?.name;
-    const plano = userData?.plano ?? userData?.plan ?? "gratis";
-
-    const dados = {
-        email,
-        nome,
-        plano,
-        categoria: config.id,
-        discordID: user,
-        mensagem: mensagem
-    };
-
     try {
+        const mensagem = interaction.fields.getTextInputValue("mensagem");
+        const user = interaction.user.id;
+        const snapshot = await db
+            .collection("users")
+            .where("discordID", "==", user)
+            .limit(1)
+            .get();
+        const userData = snapshot.docs[0]?.data();
+        const dados = {
+            email: userData?.email,
+            nome: userData?.name,
+            plano: userData?.plano ?? userData?.plan ?? "gratis",
+            categoria: config.id,
+            discordID: user,
+            mensagem
+        };
+
         const res = await fetch(
             "https://omega-quantum-bot.onrender.com/api/support/create-ticket-manual",
             {
