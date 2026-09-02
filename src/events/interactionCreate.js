@@ -273,6 +273,8 @@ async function handleTicketModal(interaction) {
         });
     }
 
+    await interaction.deferReply({ ephemeral: true });
+
     const mensagem = interaction.fields.getTextInputValue("mensagem");
 
     const user = interaction.user.id;
@@ -287,7 +289,7 @@ async function handleTicketModal(interaction) {
 
     const email = userData?.email;
     const nome = userData?.name;
-    const plano = userData?.plano;
+    const plano = userData?.plano ?? userData?.plan ?? "gratis";
 
     const dados = {
         email,
@@ -318,14 +320,14 @@ async function handleTicketModal(interaction) {
                 `❌ Erro ao criar ticket: ${res.status} - ${texto}`
             );
 
-            return interaction.reply({
+            return interaction.editReply({
                 content:
                     "❌ Ocorreu um erro interno ao criar o ticket. Por favor, tente novamente mais tarde.",
                 ephemeral: true
             });
         }
 
-        return interaction.reply({
+        await interaction.editReply({
             content: "✅ Seu ticket foi criado com sucesso!",
             ephemeral: true
         });
@@ -333,7 +335,7 @@ async function handleTicketModal(interaction) {
     } catch (error) {
         console.error("❌ Erro ao criar ticket:", error);
 
-        return interaction.reply({
+        return interaction.editReply({
             content:
                 "❌ Ocorreu um erro interno ao criar o ticket. Por favor, tente novamente mais tarde.",
             ephemeral: true
@@ -343,9 +345,14 @@ async function handleTicketModal(interaction) {
 
 
 async function handleSelectMenu(interaction) {
-    if (interaction.customId === "ticket_categoria") {
+    if (interaction.customId === "ticket_categoria" || interaction.customId === "select_ticket_category") {
         return handleProblems(interaction);
     }
+
+    return interaction.reply({
+        content: "❌ Este menu de atendimento não é mais válido.",
+        ephemeral: true
+    });
 }
 
 module.exports = {

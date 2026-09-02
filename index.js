@@ -158,6 +158,20 @@ app.post(`/api/support/create-ticket-manual`, requireCoreApiKey, async (req, res
 
   const priority = priorities[normalizedPlan];
 
+  if (!priority) {
+    return res.status(400).json({
+      error: "plano deve ser gratis, semanal, mensal, trimestral ou anual",
+    });
+  }
+
+  if (!discordID || !/^\d{17,20}$/.test(String(discordID))) {
+    return res.status(400).json({ error: "discordID inválido" });
+  }
+
+  if (!nome || typeof nome !== "string") {
+    return res.status(400).json({ error: "nome é obrigatório" });
+  }
+
   if (!guildId || !supportRoleId) {
     return res.status(500).json({ error: "Suporte Discord não está configurado no bot" });
   }
@@ -180,6 +194,7 @@ app.post(`/api/support/create-ticket-manual`, requireCoreApiKey, async (req, res
       .replace(/[^a-z0-9-]/g, "-")
       .replace(/-+/g, "-")
       .slice(0, 100);
+    const generatedTicketId = ticketId || `manual-${Date.now()}-${member.id}`;
     const channelName = `[${priority.emoji}]-suporte-${safeUsername}`.slice(0, 100);
     const permissionOverwrites = [
       {
@@ -232,7 +247,7 @@ app.post(`/api/support/create-ticket-manual`, requireCoreApiKey, async (req, res
       )
     );
     container.addTextDisplayComponents((text) =>
-      text.setContent(`# **Ticket ${ticketId}**`));
+      text.setContent(`# **Ticket ${generatedTicketId}**`));
     container.addSeparatorComponents((separator) => separator)
     container.addTextDisplayComponents((text) =>
       text.setContent(
@@ -249,12 +264,12 @@ app.post(`/api/support/create-ticket-manual`, requireCoreApiKey, async (req, res
       text.setContent(`**<:staff:1021090313076482088> [Painel Staff]** Escolha uma ação para este ticket:`))
     const buttonRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`fechar_ticket_${ticketId}`)
+        .setCustomId(`fechar_ticket_${generatedTicketId}`)
         .setLabel("Fechar Ticket")
         .setEmoji(`<a:Warn_9:1019200893209563136>`)
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId(`punir_${ticketId}_${discordID}`)
+        .setCustomId(`punir_${generatedTicketId}_${discordID}`)
         .setLabel(`Punir Cliente & Fechar Ticket`)
         .setEmoji(`<:ban_icon:1021364346774888569>`)
         .setStyle(ButtonStyle.Danger)
