@@ -356,40 +356,46 @@ module.exports = {
     once: false,
 
     async execute(interaction) {
-        if (interaction.isButton()) {
-            return handleTicketButton(interaction);
-        }
-
-        if (interaction.isModalSubmit()) {
-            return handleModalSubmit(interaction);
-        }
-        if (interaction.isStringSelectMenu()) {
-            return handleSelectMenu(interaction);
-        }
-
-        if (!interaction.isChatInputCommand()) return;
-
-        const command = interaction.client.commands.get(interaction.commandName);
-
-        if (!command) {
-            console.error(`❌ Comando não encontrado: ${interaction.commandName}`);
-            return;
-        }
-
         try {
+            if (interaction.replied || interaction.deferred) return;
+
+            if (interaction.isButton()) {
+                return handleTicketButton(interaction);
+            }
+
+            if (interaction.isModalSubmit()) {
+                return handleModalSubmit(interaction);
+            }
+            if (interaction.isStringSelectMenu()) {
+                return handleSelectMenu(interaction);
+            }
+
+            if (!interaction.isChatInputCommand()) return;
+
+            const command = interaction.client.commands.get(interaction.commandName);
+
+            if (!command) {
+                console.error(`❌ Comando não encontrado: ${interaction.commandName}`);
+                return;
+            }
+
             await command.execute(interaction);
         } catch (error) {
-            console.error(`❌ Erro ao executar ${interaction.commandName}:`, error);
+            console.error(`❌ Erro ao processar interação ${interaction.id}:`, error);
 
             const response = {
                 content: "❌ Houve um erro ao executar este comando!",
                 ephemeral: true,
             };
 
-            if (interaction.replied || interaction.deferred) {
-                await interaction.editReply(response);
-            } else {
-                await interaction.reply(response);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply(response);
+                } else {
+                    await interaction.reply(response);
+                }
+            } catch (responseError) {
+                console.error("❌ Não foi possível responder à interação:", responseError.message);
             }
         }
     },
